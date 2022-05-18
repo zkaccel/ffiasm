@@ -120,6 +120,16 @@ public:
         pm.multiexp(r, bases, scalars, scalarSize, n);
     }
 
+    void multiMulByScalarG1InAccel(Point &r, PointAffine *bases, uint8_t* scalars, unsigned int scalarSize, unsigned int n, unsigned int nThreads=0) {
+        InAccelMultiexp<Curve<BaseField>> pm(*this);
+        pm.multiexpG1(r, bases, scalars, scalarSize, n);
+    }
+
+    void multiMulByScalarG2InAccel(Point &r, PointAffine *bases, uint8_t* scalars, unsigned int scalarSize, unsigned int n, unsigned int nThreads=0) {
+        InAccelMultiexp<Curve<BaseField>> pm(*this);
+        pm.multiexpG2(r, bases, scalars, scalarSize, n);
+    }
+
 #ifdef COUNT_OPS
     void resetCounters();
     void printCounters();

@@ -37,6 +37,18 @@ public:
 
 };
 
+template <typename Curve>
+class InAccelMultiexp {
+
+    Curve &g;
+
+public:
+    InAccelMultiexp(Curve &_g): g(_g) {}
+    void multiexpG1(typename Curve::Point &r, typename Curve::PointAffine *_bases, uint8_t* _scalars, uint32_t _scalarSize, uint32_t _n, uint32_t _nThreads=0);
+    void multiexpG2(typename Curve::Point &r, typename Curve::PointAffine *_bases, uint8_t* _scalars, uint32_t _scalarSize, uint32_t _n, uint32_t _nThreads=0);
+
+};
+
 #include "multiexp.cpp"
 
 #endif // PAR_MULTIEXP2

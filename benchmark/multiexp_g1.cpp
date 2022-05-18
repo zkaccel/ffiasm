@@ -38,19 +38,19 @@ int main(int argc, char **argv) {
         G1.add(bases[i], bases[i-1], bases[i-2]);
     }
 
-    clock_t start, end;
+    struct timespec start, end;
     double cpu_time_used;
 
     G1Point p1;
     
     printf("Starting multiexp. \n");
     G1.resetCounters();
-    start = clock();
-    G1.multiMulByScalar(p1, bases, (uint8_t *)scalars, 32, N);
-    end = clock();
+    clock_gettime(CLOCK_REALTIME, &start);
+    G1.multiMulByScalarG1InAccel(p1, bases, (uint8_t *)scalars, 32, N);
+    clock_gettime(CLOCK_REALTIME, &end);
 
     G1.printCounters();
-    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    cpu_time_used = ((end.tv_sec - start.tv_sec) * (long) 1e9 + (end.tv_nsec - start.tv_nsec)) / (double) 1e9;
     printf("Time used: %.2lf\n", cpu_time_used);
     printf("Avg time per exp: %.2lf us\n", (cpu_time_used*1000000)/N);
     printf("Exps per second: %.2lf\n", (N / cpu_time_used));

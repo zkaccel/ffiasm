@@ -1,5 +1,10 @@
 #include <omp.h>
 #include <memory.h>
+#include <inaccel/coral>
+namespace Bn128 {
+    static void init();
+}
+#include "bn128.hpp"
 #include "misc.hpp"
 /*
 template <typename Curve>
@@ -141,4 +146,122 @@ void ParallelMultiexp<Curve>::multiexp(typename Curve::Point &r, typename Curve:
     }
 
     delete[] chunkResults; 
+}
+
+template <typename Curve>
+void InAccelMultiexp<Curve>::multiexpG1(typename Curve::Point &r, typename Curve::PointAffine *_bases, uint8_t* _scalars, uint32_t _scalarSize, uint32_t _n, uint32_t _nThreads) {
+    assert(_scalarSize == 32);
+
+    size_t length = _n;
+
+    inaccel::vector<uint8_t> vec_buf(length * 64);
+    inaccel::vector<uint8_t> scalar_buf(length * 32);
+    inaccel::vector<uint8_t> result_buf(96);
+
+    Bn128::init();
+
+    size_t i;
+    for (i = 0; i < length; i++) {
+        if (g.isZero(_bases[i])) {
+            continue;
+        }
+
+        mpz_t vec_X_mpz, vec_Y_mpz;
+        mpz_inits(vec_X_mpz, vec_Y_mpz, NULL);
+        g.F.toMpz(vec_X_mpz, _bases[i].x);
+        g.F.toMpz(vec_Y_mpz, _bases[i].y);
+
+        Bn128::af_p_t<Bn128::f_t<1>> tmp;
+        mpz_set(tmp.x.c[0], vec_X_mpz);
+        mpz_set(tmp.y.c[0], vec_Y_mpz);
+        Bn128::af_export(&vec_buf[i * 64], Bn128::to_mont(tmp));
+
+        mpz_clears(vec_X_mpz, vec_Y_mpz, NULL);
+
+        memcpy(&scalar_buf[i * 32], &_scalars[i * 32], 32);
+    }
+
+    if (i == 0) {
+        return;
+    }
+
+    length = ((i - 1) | 7) + 1;
+
+    vec_buf.resize(length * 64);
+    scalar_buf.resize(length * 32);
+
+    inaccel::request multiexp("libff.multiexp.alt-bn128-g1");
+    multiexp.arg(length).arg(vec_buf).arg(scalar_buf).arg(result_buf);
+    inaccel::submit(multiexp).get();
+
+    Bn128::jb_p_t<Bn128::f_t<1>> result_jacobian;
+    Bn128::jb_import(result_jacobian, result_buf.data());
+    Bn128::af_p_t<Bn128::f_t<1>> result_affine = Bn128::mont_jb_to_af(result_jacobian);
+
+    typename Curve::PointAffine result;
+    g.F.fromMpz(result.x, result_affine.x.c[0]);
+    g.F.fromMpz(result.y, result_affine.y.c[0]);
+    g.copy(r, result);
+}
+
+template <typename Curve>
+void InAccelMultiexp<Curve>::multiexpG2(typename Curve::Point &r, typename Curve::PointAffine *_bases, uint8_t* _scalars, uint32_t _scalarSize, uint32_t _n, uint32_t _nThreads) {
+    assert(_scalarSize == 32);
+
+    size_t length = _n;
+
+    inaccel::vector<uint8_t> vec_buf(length * 128);
+    inaccel::vector<uint8_t> scalar_buf(length * 32);
+    inaccel::vector<uint8_t> result_buf(192);
+
+    Bn128::init();
+
+    size_t i;
+    for (i = 0; i < length; i++) {
+        if (g.isZero(_bases[i])) {
+            continue;
+        }
+
+        mpz_t vec_X_c0_mpz, vec_X_c1_mpz, vec_Y_c0_mpz, vec_Y_c1_mpz;
+        mpz_inits(vec_X_c0_mpz, vec_X_c1_mpz, vec_Y_c0_mpz, vec_Y_c1_mpz, NULL);
+        g.F.F.toMpz(vec_X_c0_mpz, _bases[i].x.a);
+        g.F.F.toMpz(vec_X_c1_mpz, _bases[i].x.b);
+        g.F.F.toMpz(vec_Y_c0_mpz, _bases[i].y.a);
+        g.F.F.toMpz(vec_Y_c1_mpz, _bases[i].y.b);
+
+        Bn128::af_p_t<Bn128::f_t<2>> tmp;
+        mpz_set(tmp.x.c[0], vec_X_c0_mpz);
+        mpz_set(tmp.x.c[1], vec_X_c1_mpz);
+        mpz_set(tmp.y.c[0], vec_Y_c0_mpz);
+        mpz_set(tmp.y.c[1], vec_Y_c1_mpz);
+        Bn128::af_export(&vec_buf[i * 128], Bn128::to_mont(tmp));
+
+        mpz_clears(vec_X_c0_mpz, vec_X_c1_mpz, vec_Y_c0_mpz, vec_Y_c1_mpz, NULL);
+
+        memcpy(&scalar_buf[i * 32], &_scalars[i * 32], 32);
+    }
+
+    if (i == 0) {
+        return;
+    }
+
+    length = ((i - 1) | 7) + 1;
+
+    vec_buf.resize(length * 128);
+    scalar_buf.resize(length * 32);
+
+    inaccel::request multiexp("libff.multiexp.alt-bn128-g2");
+    multiexp.arg(length).arg(vec_buf).arg(scalar_buf).arg(result_buf);
+    inaccel::submit(multiexp).get();
+
+    Bn128::jb_p_t<Bn128::f_t<2>> result_jacobian;
+    Bn128::jb_import(result_jacobian, result_buf.data());
+    Bn128::af_p_t<Bn128::f_t<2>> result_affine = Bn128::mont_jb_to_af(result_jacobian);
+
+    typename Curve::PointAffine result;
+    g.F.F.fromMpz(result.x.a, result_affine.x.c[0]);
+    g.F.F.fromMpz(result.x.b, result_affine.x.c[1]);
+    g.F.F.fromMpz(result.y.a, result_affine.y.c[0]);
+    g.F.F.fromMpz(result.y.b, result_affine.y.c[1]);
+    g.copy(r, result);
 }

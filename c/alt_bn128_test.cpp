@@ -191,7 +191,7 @@ TEST(altBn128, multiExp) {
     }
 
     G1Point p1;
-    G1.multiMulByScalar(p1, bases, (uint8_t *)scalars, 32, NMExp);
+    G1.multiMulByScalarG1InAccel(p1, bases, (uint8_t *)scalars, 32, NMExp);
 
     mpz_t e;
     mpz_init_set_ui(e, acc);
@@ -236,7 +236,7 @@ TEST(altBn128, multiExp2) {
     F1.fromString(ref.x, "9163953212624378696742080269971059027061360176019470242548968584908855004282");
     F1.fromString(ref.y, "20922060990592511838374895951081914567856345629513259026540392951012456141360");
 
-    G1.multiMulByScalar(r, bases, (uint8_t *)scalars, 32, 2);
+    G1.multiMulByScalarG1InAccel(r, bases, (uint8_t *)scalars, 32, 2);
     G1.copy(ra, r);
 
     // std::cout << G1.toString(r, 10);
